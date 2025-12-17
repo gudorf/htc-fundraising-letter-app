@@ -68,33 +68,36 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 # 5. Handle User Input
+
 # Determine what text to show in the input box
 if len(st.session_state.messages) == 0:
     placeholder_text = "What month and year are you writing for today?"
 else:
     placeholder_text = "Type your response here..."
 
-# Pass the dynamic variable into the chat_input
-if prompt := st.chat_input(placeholder_text):
-    # Show user message immediately
+# Pass the dynamic variable into the chat_input with a generic key
+# The 'key' argument stops the text from getting "stuck"
+if prompt := st.chat_input(placeholder_text, key="chat_input_safety"):
+    
+    # 1. Show user message immediately
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Send to OpenAI
+    # 2. Send to OpenAI
     client.beta.threads.messages.create(
         thread_id=st.session_state.thread_id,
         role="user",
         content=prompt
     )
 
-    # Run the Assistant
+    # 3. Run the Assistant
     run = client.beta.threads.runs.create(
         thread_id=st.session_state.thread_id,
         assistant_id=assistant_id
     )
 
-    # Wait for completion (Polling)
+    # 4. Wait for completion (Polling with Safety Check)
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             while run.status != "completed":
@@ -103,7 +106,13 @@ if prompt := st.chat_input(placeholder_text):
                     thread_id=st.session_state.thread_id,
                     run_id=run.id
                 )
+                
+                # SAFETY CHECK: Stop if something goes wrong
+                if run.status in ["failed", "cancelled", "expired"]:
+                    st.error(f"Run failed with status: {run.status}")
+                    st.stop()
             
+            # --- THIS WAS THE MISSING PART ---
             # Retrieve the latest message from the assistant
             messages = client.beta.threads.messages.list(
                 thread_id=st.session_state.thread_id
@@ -111,5 +120,5 @@ if prompt := st.chat_input(placeholder_text):
             assistant_msg = messages.data[0].content[0].text.value
             st.markdown(assistant_msg)
     
-    # Save assistant message to history
+    # 5. Save assistant message to history
     st.session_state.messages.append({"role": "assistant", "content": assistant_msg})
