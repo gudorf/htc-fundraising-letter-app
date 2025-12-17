@@ -68,7 +68,14 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 # 5. Handle User Input
-if prompt := st.chat_input("What month and year are you writing for today?"):
+# Determine what text to show in the input box
+if len(st.session_state.messages) == 0:
+    placeholder_text = "What month and year are you writing for today?"
+else:
+    placeholder_text = "Type your response here..."
+
+# Pass the dynamic variable into the chat_input
+if prompt := st.chat_input(placeholder_text):
     # Show user message immediately
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
